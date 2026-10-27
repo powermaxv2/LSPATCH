@@ -196,64 +196,55 @@ uses-permission).
 
 ## Contrat Design system (packages `ui.theme`, `ui.components`, `ui.motion`)
 
-Toutes ces API sont `@Composable` publiques ; le UI dev ne doit utiliser que
-celles-ci (plus Material3 standard).
+Direction : sobre, type Réglages iOS / Linear. Fond plat, surfaces neutres,
+**un seul accent** (violet `#8B5CF6`) réservé aux switchs actifs, à la
+sélection et au bouton principal. Aucun dégradé décoratif, halo, néon ni
+animation en boucle. Typo système, marges 20dp, rythme 8dp.
 
 ```kotlin
 // ui/theme
 @Composable fun PatchStudioTheme(content: @Composable () -> Unit)   // toujours sombre
-object PsColors { val Background: Color; val Surface: Color; val SurfaceHigh: Color;
-                  val Primary: Color; val Secondary: Color; val Tertiary: Color;
-                  val TextPrimary: Color; val TextSecondary: Color; val Outline: Color }
-object PsShapes { val Card: Shape; val Pill: Shape; val Sheet: Shape }
-// typo via MaterialTheme.typography (display/headline/title/body/label configurés)
+object PsColors { Background #0E0E10; Surface #18181B; SurfaceHigh #222226; Hairline #2A2A2F;
+                  Control #3F3F46; TextPrimary #F4F4F5; TextSecondary #A1A1AA; TextTertiary #71717A;
+                  Accent #8B5CF6; OnAccent; Positive; Neutral; Destructive }
+object PsType   { ScreenTitle (32sp SemiBold, -0.5); SectionLabel (13sp Medium, capitales);
+                  RowTitle (16sp); RowSubtitle (14sp); Caption (13sp); Button }
+object PsShapes { Group (16dp); IconBadge (8dp); Button (14dp); Tile; Segment; SegmentItem }
 
 // ui/motion
-object PsMotion {
-    val Spring: SpringSpec<Float>           // ressort par défaut, bouncy doux
-    val SpringSnappy: SpringSpec<Float>
-    const val StaggerMs: Int                 // ~45
-    fun <T> tween(durationMs: Int = 420): TweenSpec<T>   // easing emphasized
-    val EmphasizedEasing: Easing
-}
-/** Apparition décalée (fade + slide + scale) quand index entre en composition. */
-fun Modifier.staggeredEntrance(index: Int, baseDelayMs: Int = 0): Modifier
-/** Effet de pression ressort (scale 0.95) + haptique optionnelle, conserve clickable. */
-fun Modifier.bounceClick(enabled: Boolean = true, haptic: Boolean = true, onClick: () -> Unit): Modifier
-/** Halo lumineux animé autour de l'élément. */
-fun Modifier.glow(color: Color, radius: Dp = 24.dp, animated: Boolean = true): Modifier
+object PsMotion { DurationShort = 150; DurationMedium = 300; Standard = FastOutSlowIn
+                  fun sharedAxisX(forward: Boolean, offsetPx: Int): ContentTransform
+                  val Expand: EnterTransition; val Collapse: ExitTransition }
+fun Modifier.pressScale(interactionSource: InteractionSource, pressedScale: Float = 0.98f): Modifier
 
 // ui/components
-@Composable fun AuroraBackground(modifier: Modifier = Modifier, colors: List<Color> = <défaut>, content: @Composable BoxScope.() -> Unit)
-@Composable fun GlassCard(modifier: Modifier = Modifier, accent: Color = PsColors.Primary, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit)
-@Composable fun ShimmerText(text: String, style: TextStyle, modifier: Modifier = Modifier, colors: List<Color> = <défaut>)
-@Composable fun PulsingDot(color: Color, modifier: Modifier = Modifier, size: Dp = 10.dp)
-@Composable fun SectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier)
-@Composable fun ToggleRow(title: String, subtitle: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit, icon: ImageVector? = null, modifier: Modifier = Modifier)
-@Composable fun SliderRow(title: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, onValueChange: (Float) -> Unit, valueLabel: (Float) -> String, modifier: Modifier = Modifier, steps: Int = 0)
-@Composable fun HueSlider(color: Color, onColorChange: (Color) -> Unit, modifier: Modifier = Modifier)   // choix de teinte + luminosité
-@Composable fun <T> ChipSelector(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit, modifier: Modifier = Modifier)  // indicateur animé qui glisse
-@Composable fun ThemeSwatch(name: String, accent: Color, background: Color, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier)  // vignette animée
-@Composable fun GradientButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, colors: List<Color> = <défaut>)  // dégradé animé + shimmer
-@Composable fun EqualizerBars(color: Color, modifier: Modifier = Modifier, bars: Int = 5, playing: Boolean = true)
-@Composable fun SpinningVinyl(accent: Color, modifier: Modifier = Modifier, spinning: Boolean = true)
-@Composable fun AnimatedLogo(modifier: Modifier = Modifier, size: Dp = 96.dp)   // logo Patch Studio animé (anneaux, rotation, morph)
+SectionHeader(title) · SectionFooter(text) · SettingsGroup { … } · RowDivider(indent)
+IconBadge(icon) · StatusDot(color) · SettingsRow(title, subtitle, icon|leading, trailing)
+NavigationRow(title, onClick, value?) · SwitchRow(title, checked, onCheckedChange)
+SliderRow(title, value, valueRange, onValueChange, valueLabel) · ThinSlider(…) · hueBrush()
+SegmentedControl(options, selected, label, onSelect) · ColorDot(color, selected, onClick)
+ThemeTile(name, background, surface, accent, selected, onClick) · TextLink(text, onClick)
+PrimaryButton(text, onClick, icon?) · SecondaryTextButton(text, onClick)
+AppIcon(packageName, label, fallbackColor)   // vraie icône via PackageManager, sinon initiale
 ```
 
 ## Écrans (UI dev)
 
-- `MainActivity` : edge-to-edge, `PatchStudioTheme { AppRoot() }`.
+- `MainActivity` : edge-to-edge (barres système transparentes, icônes claires),
+  `PatchStudioTheme { AppRoot() }`.
 - `AppRoot` : navigation par état (`sealed interface Screen { Home; AppSettings(appId); Guide }`),
-  `AnimatedContent` avec transitions riches (scale+fade+slide), `BackHandler`.
-- `ui/home/HomeScreen` : AuroraBackground, AnimatedLogo + ShimmerText titre,
-  statut module (PulsingDot selon `lastHelloFlow`), cartes des apps (`TargetApps.ALL`)
-  en entrée décalée, carte « Bientôt d'autres applis », accès au guide.
-- `ui/app/AppSettingsScreen(appId)` : en-tête avec `TargetPreview` (faux écran de
-  l'app cible rendu avec la palette choisie : vinyle qui tourne, égaliseur,
-  liste qui s'anime selon les réglages d'animation), sections Thème
-  (ThemeSwatch carrousel + HueSlider si custom), Animations, Style
-  (police, coins, aurora), Système ; `GradientButton` « Appliquer et ouvrir Deezer »
-  → `ConfigRepository.update/launchTarget`, snackbar animée.
-- `ui/guide/GuideScreen` : étapes illustrées et animées pour LSPatch
-  (installer Patch Studio, patcher Deezer en mode local, signature bypass
-  niveau 2, activer le module, ouvrir Patch Studio).
+  `AnimatedContent` en shared axis X (fondu + glissement 30dp, 300ms),
+  `SaveableStateHolder` pour garder le scroll, `BackHandler`.
+- `ui/home/HomeScreen` : grand titre, carte statut (point vert/gris selon
+  `lastHelloFlow`, lien vers le guide), groupe « Applications » (icône réelle,
+  thème actif, chevron ; ligne grisée « D'autres applications arrivent »),
+  groupe « Aide » (guide), version en pied de page.
+- `ui/app/AppSettingsScreen(appId)` : `LargeTopAppBar` repliable, `PlayerPreview`
+  (mini lecteur dans la palette choisie, couleurs animées), interrupteur
+  général, sections Thème (vignettes + couleurs perso), Animations, Style
+  (police via feuille modale, coins, aurore), Système (barres, réinitialiser
+  avec confirmation). Bouton fixe « Appliquer et ouvrir Deezer » +
+  « Appliquer sans ouvrir », snackbar standard.
+- `ui/guide/GuideScreen` : liste numérotée des étapes LSPatch (installer Patch
+  Studio, installer LSPatch, patcher Deezer en mode local avec signature
+  bypass niveau 2, activer le module, choisir son style) + astuce.

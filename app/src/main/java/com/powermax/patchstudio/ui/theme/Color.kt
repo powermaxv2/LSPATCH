@@ -2,20 +2,22 @@ package com.powermax.patchstudio.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+/** Palette de l'application : fond plat, surfaces neutres, un seul accent. */
 object PsColors {
-    val Background = Color(0xFF05060A)
-    val Surface = Color(0xFF0C0F1A)
-    val SurfaceHigh = Color(0xFF151A2B)
-    val Primary = Color(0xFFA238FF)
-    val Secondary = Color(0xFF00E5FF)
-    val Tertiary = Color(0xFFFF4FD8)
-    val TextPrimary = Color(0xFFF2F4FF)
-    val TextSecondary = Color(0xFF9AA3C2)
-    val Outline = Color(0xFF2A3050)
-}
+    val Background = Color(0xFF0E0E10)
+    val Surface = Color(0xFF18181B)
+    val SurfaceHigh = Color(0xFF222226)
+    val Hairline = Color(0xFF2A2A2F)
+    val Control = Color(0xFF3F3F46)
 
-/** Palettes de dégradés partagées par les composants. */
-object PsGradients {
-    val Brand: List<Color> = listOf(PsColors.Primary, PsColors.Secondary, PsColors.Tertiary)
-    val Aurora: List<Color> = listOf(PsColors.Primary, PsColors.Secondary, PsColors.Tertiary, Color(0xFF3D5AFE))
+    val TextPrimary = Color(0xFFF4F4F5)
+    val TextSecondary = Color(0xFFA1A1AA)
+    val TextTertiary = Color(0xFF71717A)
+
+    val Accent = Color(0xFF8B5CF6)
+    val OnAccent = Color(0xFFFFFFFF)
+
+    val Positive = Color(0xFF34C759)
+    val Neutral = Color(0xFF71717A)
+    val Destructive = Color(0xFFF87171)
 }
