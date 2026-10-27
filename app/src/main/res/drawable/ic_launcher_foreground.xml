@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Lightning bolt (brush stroke), centred in the 66dp safe zone -->
+    <path android:pathData="M58,30 L40,57 L52,57 L47,78 L68,48 L55,48 L61,30 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="40"
+                android:startY="30"
+                android:endX="68"
+                android:endY="78"
+                android:type="linear">
+                <item android:color="#FF8A4DFF" android:offset="0.0" />
+                <item android:color="#FF00E5FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Sound waves, left -->
+    <path
+        android:pathData="M33,43 C29.5,48 29.5,60 33,65"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF9D6BFF" />
+    <path
+        android:pathData="M27,38 C21.5,46 21.5,62 27,70"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#CC7E5CFF" />
+
+    <!-- Sound waves, right -->
+    <path
+        android:pathData="M75,43 C78.5,48 78.5,60 75,65"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF38D6F5" />
+    <path
+        android:pathData="M81,38 C86.5,46 86.5,62 81,70"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#CC00E5FF" />
+</vector>
