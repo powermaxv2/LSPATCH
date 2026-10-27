@@ -1,5 +1,13 @@
 package com.powermax.patchstudio.ui.app
 
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Gradient
+import androidx.compose.material.icons.outlined.FormatAlignLeft
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.ZoomIn
+import androidx.compose.material.icons.outlined.Opacity
+import com.powermax.patchstudio.core.LyricsAlignment
+import com.powermax.patchstudio.core.LyricsBackground
 import android.graphics.Typeface as AndroidTypeface
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -101,6 +109,12 @@ import com.powermax.patchstudio.ui.theme.PsColors
 import com.powermax.patchstudio.ui.theme.PsType
 import java.util.Locale
 import kotlinx.coroutines.launch
+
+private fun lyricsBackgroundLabel(b: LyricsBackground): String = when (b) {
+    LyricsBackground.NONE -> "Aucun"
+    LyricsBackground.GRADIENT -> "Dégradé"
+    LyricsBackground.DARK -> "Sombre"
+}
 
 private fun entranceLabel(e: EntranceAnimation): String = when (e) {
     EntranceAnimation.NONE -> "Aucune"
@@ -437,6 +451,71 @@ fun AppSettingsScreen(appId: String, onBack: () -> Unit) {
                                     onValueChange = { v -> update { it.copy(auroraIntensity = v) } },
                                     valueLabel = { "${(it * 100).toInt()} %" },
                                     modifier = Modifier.padding(start = 48.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Paroles
+            item(key = "lyrics") {
+                Column(Modifier.padding(top = 32.dp)) {
+                    SectionHeader("Paroles")
+                    SettingsGroup {
+                        SwitchRow(
+                            title = "Paroles embellies",
+                            subtitle = "Texte plus grand, ligne en cours mise en avant",
+                            icon = Icons.Outlined.MusicNote,
+                            checked = config.lyricsEnhanced,
+                            onCheckedChange = { v -> update { it.copy(lyricsEnhanced = v) } },
+                        )
+                        AnimatedVisibility(
+                            visible = config.lyricsEnhanced,
+                            enter = PsMotion.Expand,
+                            exit = PsMotion.Collapse,
+                        ) {
+                            Column {
+                                RowDivider()
+                                SettingsRow(title = "Fond", icon = Icons.Outlined.Gradient)
+                                SegmentedControl(
+                                    options = LyricsBackground.values().toList(),
+                                    selected = config.lyricsBackground,
+                                    label = { lyricsBackgroundLabel(it) },
+                                    onSelect = { b -> update { it.copy(lyricsBackground = b) } },
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                                )
+                                RowDivider()
+                                SettingsRow(title = "Alignement", icon = Icons.Outlined.FormatAlignLeft)
+                                SegmentedControl(
+                                    options = LyricsAlignment.values().toList(),
+                                    selected = config.lyricsAlignment,
+                                    label = { if (it == LyricsAlignment.LEFT) "Gauche" else "Centré" },
+                                    onSelect = { a -> update { it.copy(lyricsAlignment = a) } },
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                                )
+                                RowDivider()
+                                SliderRow(
+                                    title = "Taille du texte",
+                                    icon = Icons.Outlined.FormatSize,
+                                    value = config.lyricsTextScale,
+                                    valueRange = StyleConfig.LYRICS_SCALE_RANGE,
+                                    onValueChange = { v -> update { it.copy(lyricsTextScale = v) } },
+                                    valueLabel = { "${(it * 100).toInt()} %" },
+                                )
+                                RowDivider()
+                                SwitchRow(
+                                    title = "Zoom sur la ligne en cours",
+                                    icon = Icons.Outlined.ZoomIn,
+                                    checked = config.lyricsActiveZoom,
+                                    onCheckedChange = { v -> update { it.copy(lyricsActiveZoom = v) } },
+                                )
+                                RowDivider()
+                                SwitchRow(
+                                    title = "Fondu en haut et en bas",
+                                    icon = Icons.Outlined.Opacity,
+                                    checked = config.lyricsFadeEdges,
+                                    onCheckedChange = { v -> update { it.copy(lyricsFadeEdges = v) } },
                                 )
                             }
                         }

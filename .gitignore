@@ -9,3 +9,4 @@ captures/
 .cxx
 *.hprof
 .kotlin/
+.claude/worktrees/
