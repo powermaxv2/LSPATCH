@@ -4,6 +4,18 @@ enum class EntranceAnimation { NONE, FADE, SLIDE_UP, ZOOM, BOUNCE }
 
 enum class FontChoice { DEFAULT, CONDENSED, LIGHT, MEDIUM, SERIF, MONO, CASUAL }
 
+/** Fond de l'écran des paroles. */
+enum class LyricsBackground {
+    /** Fond d'origine de l'app. */
+    NONE,
+    /** Dégradé lent et sobre dérivé de l'accent. */
+    GRADIENT,
+    /** Fond uni très sombre. */
+    DARK,
+}
+
+enum class LyricsAlignment { LEFT, CENTER }
+
 data class StyleConfig(
     val enabled: Boolean = true,
     val themeId: String = "amoled",
@@ -20,6 +32,12 @@ data class StyleConfig(
     val font: FontChoice = FontChoice.DEFAULT,
     val aurora: Boolean = false,
     val auroraIntensity: Float = 0.25f,
+    val lyricsEnhanced: Boolean = true,
+    val lyricsBackground: LyricsBackground = LyricsBackground.GRADIENT,
+    val lyricsTextScale: Float = 1.15f,
+    val lyricsAlignment: LyricsAlignment = LyricsAlignment.LEFT,
+    val lyricsActiveZoom: Boolean = true,
+    val lyricsFadeEdges: Boolean = true,
 ) {
     /** null si thème original ou si !enabled */
     fun resolvedPalette(): Palette? {
@@ -44,6 +62,12 @@ data class StyleConfig(
         K_FONT to font.name,
         K_AURORA to aurora.toString(),
         K_AURORA_INTENSITY to auroraIntensity.toString(),
+        K_LYRICS to lyricsEnhanced.toString(),
+        K_LYRICS_BG to lyricsBackground.name,
+        K_LYRICS_SCALE to lyricsTextScale.toString(),
+        K_LYRICS_ALIGN to lyricsAlignment.name,
+        K_LYRICS_ZOOM to lyricsActiveZoom.toString(),
+        K_LYRICS_FADE to lyricsFadeEdges.toString(),
     )
 
     companion object {
@@ -53,6 +77,7 @@ data class StyleConfig(
         val SPEED_RANGE = 0.5f..2f
         val CORNER_RANGE = 0..32
         val AURORA_RANGE = 0.05f..0.6f
+        val LYRICS_SCALE_RANGE = 0.9f..1.6f
 
         private const val K_ENABLED = "enabled"
         private const val K_THEME = "themeId"
@@ -69,6 +94,12 @@ data class StyleConfig(
         private const val K_FONT = "font"
         private const val K_AURORA = "aurora"
         private const val K_AURORA_INTENSITY = "auroraIntensity"
+        private const val K_LYRICS = "lyricsEnhanced"
+        private const val K_LYRICS_BG = "lyricsBackground"
+        private const val K_LYRICS_SCALE = "lyricsTextScale"
+        private const val K_LYRICS_ALIGN = "lyricsAlignment"
+        private const val K_LYRICS_ZOOM = "lyricsActiveZoom"
+        private const val K_LYRICS_FADE = "lyricsFadeEdges"
 
         val DEFAULT: StyleConfig = StyleConfig()
 
@@ -103,6 +134,12 @@ data class StyleConfig(
                 font = enumOrNull<FontChoice>(map[K_FONT]) ?: d.font,
                 aurora = bool(K_AURORA, d.aurora),
                 auroraIntensity = float(K_AURORA_INTENSITY, d.auroraIntensity, AURORA_RANGE),
+                lyricsEnhanced = bool(K_LYRICS, d.lyricsEnhanced),
+                lyricsBackground = enumOrNull<LyricsBackground>(map[K_LYRICS_BG]) ?: d.lyricsBackground,
+                lyricsTextScale = float(K_LYRICS_SCALE, d.lyricsTextScale, LYRICS_SCALE_RANGE),
+                lyricsAlignment = enumOrNull<LyricsAlignment>(map[K_LYRICS_ALIGN]) ?: d.lyricsAlignment,
+                lyricsActiveZoom = bool(K_LYRICS_ZOOM, d.lyricsActiveZoom),
+                lyricsFadeEdges = bool(K_LYRICS_FADE, d.lyricsFadeEdges),
             )
         }
 

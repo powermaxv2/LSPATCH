@@ -56,12 +56,15 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
 
     private val emphasized = PathInterpolator(0.2f, 0f, 0f, 1f)
 
+    private val lyrics = LyricsStyler(target) { store.config }
+
     fun install() {
         onConfig(store.config)
         store.addListener { onConfig(it) }
         installColorHooks()
         installActivityHooks()
         installViewHooks()
+        lyrics.install()
     }
 
     private fun onConfig(c: StyleConfig) {
@@ -307,8 +310,13 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
                 .scaleX(s).scaleY(s).start()
             if (c.haptics) v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         } else {
+            val rest = try {
+                lyrics.restScale(v) ?: 1f
+            } catch (_: Throwable) {
+                1f
+            }
             v.animate().setStartDelay(0).setDuration(260L).setInterpolator(OvershootInterpolator())
-                .scaleX(1f).scaleY(1f).start()
+                .scaleX(rest).scaleY(rest).start()
         }
     }
 
@@ -358,6 +366,11 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
             while (stack.isNotEmpty()) {
                 val v = stack.pop()
                 if (v is ViewGroup) for (i in 0 until v.childCount) v.getChildAt(i)?.let { stack.push(it) }
+                try {
+                    lyrics.onWalk(v, c)
+                } catch (t: Throwable) {
+                    Hooks.logOnce("lyrics", t)
+                }
                 if (processed.containsKey(v)) continue
                 when (v) {
                     is ImageView -> {
