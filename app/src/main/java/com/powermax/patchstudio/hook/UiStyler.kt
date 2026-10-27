@@ -224,6 +224,7 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
         Hooks.guard("TextView.setTypeface") {
             Hooks.before(TextView::class.java, "setTypeface", Typeface::class.java) { p ->
                 if (!cfg.enabled) return@before
+                if (FontMapper.isIconText((p.thisObject as TextView).text)) return@before
                 val tf = p.args[0] as Typeface?
                 val mapped = FontMapper.map(tf)
                 if (mapped !== tf) p.args[0] = mapped
@@ -373,6 +374,7 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
                     }
                     is TextView -> {
                         processed[v] = true
+                        if (FontMapper.isIconText(v.text)) continue
                         val mapped = FontMapper.map(v.typeface)
                         if (mapped != null && mapped !== v.typeface) v.typeface = mapped
                     }

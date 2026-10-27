@@ -42,4 +42,11 @@ internal object FontMapper {
             Typeface.create(fam, style).also { produced.add(it) }
         }
     }
+
+    /** Les polices d'icônes utilisent la zone Unicode privée : ne jamais les remplacer. */
+    fun isIconText(text: CharSequence?): Boolean {
+        if (text.isNullOrEmpty()) return false
+        for (ch in text) if (ch in '\uE000'..'\uF8FF') return true
+        return false
+    }
 }
