@@ -73,6 +73,8 @@ class CoreTest {
             tintSystemBars = false, entrance = EntranceAnimation.BOUNCE, screenTransitions = false, animationSpeed = 1.5f,
             listAnimations = false, pressBounce = false, haptics = true, cornerRadiusDp = 20, font = FontChoice.MONO,
             aurora = true, auroraIntensity = 0.4f,
+            lyricsEnhanced = false, lyricsBackground = LyricsBackground.DARK, lyricsTextScale = 1.4f,
+            lyricsAlignment = LyricsAlignment.CENTER, lyricsActiveZoom = false, lyricsFadeEdges = false,
         )
         assertEquals(cfg, StyleConfig.fromMap(cfg.toMap()))
         assertEquals(StyleConfig.DEFAULT, StyleConfig.fromMap(StyleConfig.DEFAULT.toMap()))
@@ -94,6 +96,36 @@ class CoreTest {
         assertEquals(0.25f, cfg.auroraIntensity, 0f)
         assertEquals(FontChoice.SERIF, cfg.font)
         assertEquals(StyleConfig.DEFAULT, StyleConfig.fromMap(emptyMap()))
+    }
+
+    @Test fun lyricsDefaults() {
+        val d = StyleConfig.DEFAULT
+        assertEquals(true, d.lyricsEnhanced)
+        assertEquals(LyricsBackground.GRADIENT, d.lyricsBackground)
+        assertEquals(1.15f, d.lyricsTextScale, 0f)
+        assertEquals(LyricsAlignment.LEFT, d.lyricsAlignment)
+        assertEquals(true, d.lyricsActiveZoom)
+        assertEquals(true, d.lyricsFadeEdges)
+    }
+
+    @Test fun lyricsFromMapTolerant() {
+        val low = StyleConfig.fromMap(mapOf(
+            "lyricsEnhanced" to "0", "lyricsBackground" to " none ", "lyricsTextScale" to "0.1",
+            "lyricsAlignment" to "center", "lyricsActiveZoom" to "nope", "lyricsFadeEdges" to "false",
+        ))
+        assertEquals(false, low.lyricsEnhanced)
+        assertEquals(LyricsBackground.NONE, low.lyricsBackground)
+        assertEquals(0.9f, low.lyricsTextScale, 0f)
+        assertEquals(LyricsAlignment.CENTER, low.lyricsAlignment)
+        assertEquals(true, low.lyricsActiveZoom)
+        assertEquals(false, low.lyricsFadeEdges)
+        val bad = StyleConfig.fromMap(mapOf(
+            "lyricsBackground" to "RAINBOW", "lyricsTextScale" to "42", "lyricsAlignment" to "RIGHT",
+        ))
+        assertEquals(LyricsBackground.GRADIENT, bad.lyricsBackground)
+        assertEquals(1.6f, bad.lyricsTextScale, 0f)
+        assertEquals(LyricsAlignment.LEFT, bad.lyricsAlignment)
+        assertEquals(1.15f, StyleConfig.fromMap(mapOf("lyricsTextScale" to "NaN")).lyricsTextScale, 0f)
     }
 
     @Test fun protocolEncodeDecode() {

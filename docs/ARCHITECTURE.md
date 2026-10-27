@@ -103,6 +103,8 @@ object ThemePresets {
 // StyleConfig.kt
 enum class EntranceAnimation { NONE, FADE, SLIDE_UP, ZOOM, BOUNCE }
 enum class FontChoice { DEFAULT, CONDENSED, LIGHT, MEDIUM, SERIF, MONO, CASUAL }
+enum class LyricsBackground { NONE, GRADIENT, DARK } // GRADIENT = dégradé lent dérivé de l'accent ; DARK = uni très sombre
+enum class LyricsAlignment { LEFT, CENTER }
 data class StyleConfig(
     val enabled: Boolean = true,
     val themeId: String = "amoled",
@@ -119,6 +121,13 @@ data class StyleConfig(
     val font: FontChoice = FontChoice.DEFAULT,
     val aurora: Boolean = false,
     val auroraIntensity: Float = 0.25f,   // 0.05..0.6
+    // Écran des paroles (détecté via les noms d'id de ressource contenant "lyric")
+    val lyricsEnhanced: Boolean = true,
+    val lyricsBackground: LyricsBackground = LyricsBackground.GRADIENT,
+    val lyricsTextScale: Float = 1.15f,   // 0.9..1.6 (LYRICS_SCALE_RANGE)
+    val lyricsAlignment: LyricsAlignment = LyricsAlignment.LEFT,
+    val lyricsActiveZoom: Boolean = true, // la ligne en cours grossit légèrement (ressort)
+    val lyricsFadeEdges: Boolean = true,  // fondu en haut/bas de la liste
 ) {
     /** null si thème original ou si !enabled */
     fun resolvedPalette(): Palette?
@@ -191,6 +200,12 @@ uses-permission).
 - Point d'entrée : `com.powermax.patchstudio.hook.HookEntry` (implémente
   `IXposedHookLoadPackage`), référencé dans `assets/xposed_init`.
 - `res/values/arrays.xml` : `xposed_scope` = [`deezer.android.app`].
+- `LyricsStyler` (branché par `UiStyler`, même parcours d'arbre throttlé) :
+  conteneur de paroles = vue dont `getResourceEntryName(id)` contient « lyric »
+  (aucun repli heuristique). Agrandit/graisse/aligne les TextView, zoom de la
+  ligne active via `TextView.setTextColor` (couleur plus vive ⇒ ligne active),
+  fondu des bords des listes, fond `LyricsGradientDrawable` (dégradé) ou uni.
+  Log une fois par nom d'id détecté (`PatchStudio: lyrics id …`).
 - Moteur générique `UiStyler` réutilisable pour toute future app ; chaque
   app = un `TargetApp` dans `:core` + éventuellement un `AppHooker` dédié.
 
