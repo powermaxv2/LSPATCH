@@ -95,7 +95,7 @@ data class ThemePreset(val id: String, val name: String, val description: String
 // palette == null  => thème "original" (aucun remappage couleur)
 object ThemePresets {
     val ORIGINAL: ThemePreset        // id "original"
-    val ALL: List<ThemePreset>       // original, amoled, synthwave, ocean, foret, sunset, sakura, custom
+    val ALL: List<ThemePreset>       // original, amoled, synthwave, ocean, foret, sunset, sakura, nord, gold, ruby, midnight, custom
     fun byId(id: String): ThemePreset // fallback ORIGINAL
     const val CUSTOM_ID = "custom"
 }
@@ -128,12 +128,16 @@ data class StyleConfig(
     val lyricsAlignment: LyricsAlignment = LyricsAlignment.LEFT,
     val lyricsActiveZoom: Boolean = true, // la ligne en cours grossit légèrement (ressort)
     val lyricsFadeEdges: Boolean = true,  // fondu en haut/bas de la liste
+    val lyricsAccentActive: Boolean = false, // teinte la ligne active en couleur d'accent
 ) {
     /** null si thème original ou si !enabled */
     fun resolvedPalette(): Palette?
     fun toMap(): Map<String, String>
+    fun toShareCode(): String             // format compact "PS1:<base64url>"
     companion object {
         fun fromMap(map: Map<String, String>): StyleConfig  // tolérant : clés absentes/invalides => défaut
+        fun fromShareCode(code: String?): StyleConfig?      // null si invalide
+        fun hexRgb(color: Int): String                      // "#RRGGBB"
         val DEFAULT: StyleConfig
     }
 }
@@ -144,11 +148,13 @@ object ColorMath {
     fun fromHsl(h: Float, s: Float, l: Float, alpha: Int = 255): Int
     fun blend(a: Int, b: Int, t: Float): Int
     fun luminance(color: Int): Float
+    fun contrastRatio(a: Int, b: Int): Float // ratio WCAG 2.1 (1..21)
     fun onColorFor(background: Int): Int   // noir ou blanc lisible
 }
 
 // ColorRemapper.kt — thread-safe, cache interne
-class ColorRemapper(palette: Palette, brandHueRange: ClosedFloatingPointRange<Float>) {
+class ColorRemapper(palette: Palette, brandHueRange: ClosedFloatingPointRange<Float>, brandLightness: Float = BRAND_LIGHTNESS) {
+    constructor(palette: Palette, target: TargetApp)
     fun map(color: Int): Int
 }
 
@@ -175,23 +181,29 @@ class ConfigRepository private constructor(context: Context) {
     fun configFlow(appId: String): StateFlow<StyleConfig>
     fun current(appId: String): StyleConfig
     fun update(appId: String, transform: (StyleConfig) -> StyleConfig)
+    fun replace(appId: String, config: StyleConfig)
     fun reset(appId: String)
-    /** Envoie la config au process cible (broadcast) si lancé. */
-    fun pushToTarget(appId: String)
+    /** Envoie la config au process cible (broadcast) si installé. */
+    fun pushToTarget(appId: String): Boolean
     /** Lance l'app cible avec la config en extras. Renvoie false si non installée. */
     fun launchTarget(context: Context, appId: String): Boolean
     fun isInstalled(appId: String): Boolean
+    fun installedVersion(appId: String): String?
+    fun findLspatchPackage(): String?
+    fun launchPackage(context: Context, packageName: String): Boolean
     /** Timestamp (ms) du dernier HELLO reçu du module dans l'app cible, 0 si jamais. */
     fun lastHelloFlow(appId: String): StateFlow<Long>
+    /** Version du module transmise dans le dernier HELLO, ou null. */
+    fun lastHelloVersionFlow(appId: String): StateFlow<String?>
     companion object { fun get(context: Context): ConfigRepository }
 }
 // ConfigProvider : ContentProvider (lecture seule) exposant la config
-// StatusReceiver : BroadcastReceiver ACTION_HELLO -> enregistre le timestamp
+// StatusReceiver : BroadcastReceiver ACTION_HELLO -> enregistre timestamp + EXTRA_VERSION
 ```
 Manifest (Build) déclare : `com.powermax.patchstudio.data.ConfigProvider`
 (authority `com.powermax.patchstudio.config`, exported=true) et
 `com.powermax.patchstudio.data.StatusReceiver` (exported=true, action HELLO),
-`<queries><package android:name="deezer.android.app"/></queries>`, la
+`<queries>` (`deezer.android.app`, `org.lsposed.lspatch`, `io.github.lsposed.lspatch`), la
 permission signature `com.powermax.patchstudio.permission.CONFIG` (définie +
 uses-permission).
 
@@ -202,10 +214,11 @@ uses-permission).
 - `res/values/arrays.xml` : `xposed_scope` = [`deezer.android.app`].
 - `LyricsStyler` (branché par `UiStyler`, même parcours d'arbre throttlé) :
   conteneur de paroles = vue dont `getResourceEntryName(id)` contient « lyric »
-  (aucun repli heuristique). Agrandit/graisse/aligne les TextView, zoom de la
-  ligne active via `TextView.setTextColor` (couleur plus vive ⇒ ligne active),
-  fondu des bords des listes, fond `LyricsGradientDrawable` (dégradé) ou uni.
-  Log une fois par nom d'id détecté (`PatchStudio: lyrics id …`).
+  (aucun repli heuristique). Agrandit/graisse/aligne les TextView, zoom et
+  surlignage en accent optionnel de la ligne active via `TextView.setTextColor`
+  (couleur plus vive ⇒ ligne active), fondu des bords des listes, fond
+  `LyricsGradientDrawable` (dégradé) ou uni, nettoyage à chaud via
+  `onConfigChanged`. Log une fois par nom d'id détecté (`PatchStudio: lyrics id …`).
 - Moteur générique `UiStyler` réutilisable pour toute future app ; chaque
   app = un `TargetApp` dans `:core` + éventuellement un `AppHooker` dédié.
 

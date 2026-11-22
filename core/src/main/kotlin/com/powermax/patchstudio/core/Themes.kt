@@ -29,6 +29,10 @@ object ThemePresets {
         preset("foret", "Forêt", "Vert frais sur sous-bois", 0xFF3DDC84, 0xFF08140D, 0xFF11281A),
         preset("sunset", "Sunset", "Orange chaud de fin de journée", 0xFFFF7A45, 0xFF1A0B08, 0xFF2E1610),
         preset("sakura", "Sakura", "Rose tendre des cerisiers", 0xFFFF8FB8, 0xFF160B12, 0xFF2A1622),
+        preset("nord", "Nord", "Bleu glacier apaisant", 0xFF88C0D0, 0xFF0E1319, 0xFF1A222D),
+        preset("gold", "Or nocturne", "Ambre doré sur noir chaud", 0xFFF5B73B, 0xFF0C0A07, 0xFF1C1710),
+        preset("ruby", "Rubis", "Rouge carmin sur nuit sombre", 0xFFFF3B5C, 0xFF120609, 0xFF240D13),
+        preset("midnight", "Minuit", "Indigo électrique sur bleu nuit", 0xFF6C7CFF, 0xFF070914, 0xFF12172E),
         ThemePreset(
             CUSTOM_ID, "Perso", "Tes propres couleurs",
             paletteOf(StyleConfig.DEFAULT_CUSTOM_ACCENT, StyleConfig.DEFAULT_CUSTOM_BACKGROUND),

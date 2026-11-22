@@ -20,12 +20,14 @@ import kotlin.math.sin
 /** Voile "aurore" : 3 halos radiaux (accent, teinte ±40°) qui dérivent lentement. */
 internal class AuroraDrawable(accent: Int, intensity: Float) : Drawable() {
 
-    private val colors: IntArray
+    private var currentAccent: Int = accent
+    private var currentIntensity: Float = intensity
+    private var colors: IntArray = buildColors(accent)
     private val paints = Array(3) { Paint(Paint.ANTI_ALIAS_FLAG) }
     private val matrix = Matrix()
     private var radius = 0f
     private var phase = 0f
-    private var globalAlpha = 255
+    private var globalAlpha = intensityToAlpha(intensity)
 
     private val animator: ValueAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = 12_000L
@@ -38,14 +40,43 @@ internal class AuroraDrawable(accent: Int, intensity: Float) : Drawable() {
         }
     }
 
-    init {
+    fun updateStyle(accent: Int, intensity: Float) {
+        val accentChanged = accent != currentAccent
+        val intensityChanged = intensity != currentIntensity
+        if (!accentChanged && !intensityChanged) return
+        currentAccent = accent
+        currentIntensity = intensity
+        if (accentChanged) {
+            colors = buildColors(accent)
+            if (radius > 0f) rebuildShaders()
+        }
+        if (intensityChanged) {
+            globalAlpha = intensityToAlpha(intensity)
+        }
+        invalidateSelf()
+    }
+
+    private fun buildColors(accent: Int): IntArray {
         val hsl = ColorMath.toHsl(accent)
-        colors = intArrayOf(
+        return intArrayOf(
             accent,
             ColorMath.fromHsl(hsl[0] + 40f, hsl[1], hsl[2]),
             ColorMath.fromHsl(hsl[0] - 40f, hsl[1], hsl[2]),
         )
-        globalAlpha = (intensity.coerceIn(0f, 1f) * 255f * 0.5f).toInt().coerceIn(0, 255)
+    }
+
+    private fun intensityToAlpha(intensity: Float): Int =
+        (intensity.coerceIn(0f, 1f) * 255f * 0.5f).toInt().coerceIn(0, 255)
+
+    private fun rebuildShaders() {
+        for (i in 0 until 3) {
+            paints[i].shader = RadialGradient(
+                0f, 0f, radius,
+                intArrayOf(colors[i], ColorMath.withAlpha(colors[i], 0)),
+                floatArrayOf(0f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
     }
 
     fun start() {
@@ -73,14 +104,7 @@ internal class AuroraDrawable(accent: Int, intensity: Float) : Drawable() {
         super.onBoundsChange(bounds)
         radius = max(bounds.width(), bounds.height()) * 0.55f
         if (radius <= 0f) return
-        for (i in 0 until 3) {
-            paints[i].shader = RadialGradient(
-                0f, 0f, radius,
-                intArrayOf(colors[i], ColorMath.withAlpha(colors[i], 0)),
-                floatArrayOf(0f, 1f),
-                Shader.TileMode.CLAMP,
-            )
-        }
+        rebuildShaders()
     }
 
     override fun draw(canvas: Canvas) {

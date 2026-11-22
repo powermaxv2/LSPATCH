@@ -1,5 +1,7 @@
 package com.powermax.patchstudio.core
 
+import java.util.Base64
+
 enum class EntranceAnimation { NONE, FADE, SLIDE_UP, ZOOM, BOUNCE }
 
 enum class FontChoice { DEFAULT, CONDENSED, LIGHT, MEDIUM, SERIF, MONO, CASUAL }
@@ -38,6 +40,7 @@ data class StyleConfig(
     val lyricsAlignment: LyricsAlignment = LyricsAlignment.LEFT,
     val lyricsActiveZoom: Boolean = true,
     val lyricsFadeEdges: Boolean = true,
+    val lyricsAccentActive: Boolean = false,
 ) {
     /** null si thème original ou si !enabled */
     fun resolvedPalette(): Palette? {
@@ -68,7 +71,20 @@ data class StyleConfig(
         K_LYRICS_ALIGN to lyricsAlignment.name,
         K_LYRICS_ZOOM to lyricsActiveZoom.toString(),
         K_LYRICS_FADE to lyricsFadeEdges.toString(),
+        K_LYRICS_ACCENT to lyricsAccentActive.toString(),
     )
+
+    /** Code compact partageable (`PS1:...`) n'encodant que les différences par rapport au défaut. */
+    fun toShareCode(): String {
+        val defaults = DEFAULT.toMap()
+        val diff = toMap().entries
+            .filter { (k, v) -> defaults[k] != v }
+            .sortedBy { it.key }
+            .joinToString(";") { (k, v) -> "$k=$v" }
+        val payload = diff.ifEmpty { SHARE_DEFAULT_MARKER }
+        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.toByteArray(Charsets.UTF_8))
+        return SHARE_PREFIX + encoded
+    }
 
     companion object {
         const val DEFAULT_CUSTOM_ACCENT: Int = 0xFF00E5FF.toInt()
@@ -78,6 +94,9 @@ data class StyleConfig(
         val CORNER_RANGE = 0..32
         val AURORA_RANGE = 0.05f..0.6f
         val LYRICS_SCALE_RANGE = 0.9f..1.6f
+
+        private const val SHARE_PREFIX = "PS1:"
+        private const val SHARE_DEFAULT_MARKER = "_"
 
         private const val K_ENABLED = "enabled"
         private const val K_THEME = "themeId"
@@ -100,6 +119,15 @@ data class StyleConfig(
         private const val K_LYRICS_ALIGN = "lyricsAlignment"
         private const val K_LYRICS_ZOOM = "lyricsActiveZoom"
         private const val K_LYRICS_FADE = "lyricsFadeEdges"
+        private const val K_LYRICS_ACCENT = "lyricsAccentActive"
+
+        private val KNOWN_KEYS = setOf(
+            K_ENABLED, K_THEME, K_CUSTOM_ACCENT, K_CUSTOM_BG, K_SYSTEM_BARS,
+            K_ENTRANCE, K_TRANSITIONS, K_SPEED, K_LISTS, K_BOUNCE, K_HAPTICS,
+            K_CORNERS, K_FONT, K_AURORA, K_AURORA_INTENSITY,
+            K_LYRICS, K_LYRICS_BG, K_LYRICS_SCALE, K_LYRICS_ALIGN, K_LYRICS_ZOOM,
+            K_LYRICS_FADE, K_LYRICS_ACCENT,
+        )
 
         val DEFAULT: StyleConfig = StyleConfig()
 
@@ -140,7 +168,35 @@ data class StyleConfig(
                 lyricsAlignment = enumOrNull<LyricsAlignment>(map[K_LYRICS_ALIGN]) ?: d.lyricsAlignment,
                 lyricsActiveZoom = bool(K_LYRICS_ZOOM, d.lyricsActiveZoom),
                 lyricsFadeEdges = bool(K_LYRICS_FADE, d.lyricsFadeEdges),
+                lyricsAccentActive = bool(K_LYRICS_ACCENT, d.lyricsAccentActive),
             )
+        }
+
+        /** Décode un code généré par [toShareCode]. Renvoie null si invalide ou corrompu. */
+        fun fromShareCode(code: String?): StyleConfig? {
+            val cleaned = code?.trim()?.trim('`', '"', '\'') ?: return null
+            if (!cleaned.startsWith(SHARE_PREFIX, ignoreCase = true)) return null
+            val body = cleaned.substring(SHARE_PREFIX.length).trim()
+            if (body.isEmpty()) return null
+            val decoded = try {
+                String(Base64.getUrlDecoder().decode(body), Charsets.UTF_8)
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+            if (decoded == SHARE_DEFAULT_MARKER) return DEFAULT
+            val map = HashMap<String, String>()
+            var knownCount = 0
+            for (entry in decoded.split(';')) {
+                if (entry.isEmpty()) continue
+                val eq = entry.indexOf('=')
+                if (eq <= 0 || eq >= entry.lastIndex) return null
+                val k = entry.substring(0, eq).trim()
+                val v = entry.substring(eq + 1).trim()
+                if (k in KNOWN_KEYS) knownCount++
+                map[k] = v
+            }
+            if (knownCount == 0) return null
+            return fromMap(map)
         }
 
         private inline fun <reified E : Enum<E>> enumOrNull(v: String?): E? {
@@ -150,6 +206,9 @@ data class StyleConfig(
 
         /** "#AARRGGBB" */
         fun hex(color: Int): String = "#%08X".format(color)
+
+        /** "#RRGGBB" (sans alpha, utile pour l'UI). */
+        fun hexRgb(color: Int): String = "#%06X".format(color and 0x00FFFFFF)
 
         /** Accepte "#AARRGGBB", "#RRGGBB" (alpha FF), avec ou sans '#'. */
         fun parseHex(v: String?): Int? {

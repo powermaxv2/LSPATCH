@@ -10,6 +10,8 @@
 
     <queries>
         <package android:name="deezer.android.app" />
+        <package android:name="org.lsposed.lspatch" />
+        <package android:name="io.github.lsposed.lspatch" />
     </queries>
 
     <application

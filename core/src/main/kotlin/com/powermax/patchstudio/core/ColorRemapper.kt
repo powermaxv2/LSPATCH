@@ -8,7 +8,17 @@ import java.util.concurrent.ConcurrentHashMap
  *  - fonds sombres grisâtres -> dégradé background..surface ;
  *  - le reste est inchangé. Thread-safe.
  */
-class ColorRemapper(private val palette: Palette, private val brandHueRange: ClosedFloatingPointRange<Float>) {
+class ColorRemapper(
+    private val palette: Palette,
+    private val brandHueRange: ClosedFloatingPointRange<Float>,
+    private val brandLightness: Float = BRAND_LIGHTNESS,
+) {
+
+    constructor(palette: Palette, target: TargetApp) : this(
+        palette = palette,
+        brandHueRange = target.brandHueRange,
+        brandLightness = ColorMath.toHsl(target.brandColor)[2],
+    )
 
     private val cache = ConcurrentHashMap<Int, Int>()
     // Couleurs déjà produites : map() doit être idempotent (une couleur peut repasser par plusieurs hooks).
@@ -22,7 +32,7 @@ class ColorRemapper(private val palette: Palette, private val brandHueRange: Clo
         val out = compute(color)
         if (cache.size > MAX_CACHE) {
             cache.clear()
-            produced.clear()
+            if (produced.size > MAX_PRODUCED) produced.clear()
         }
         cache[color] = out
         if (out != color) produced.add(out)
@@ -35,11 +45,18 @@ class ColorRemapper(private val palette: Palette, private val brandHueRange: Clo
             rgb == palette.accent and 0x00FFFFFF
     }
 
+    private fun inHueRange(h: Float): Boolean {
+        if (h in brandHueRange) return true
+        if (brandHueRange.endInclusive > 360f && (h + 360f) in brandHueRange) return true
+        if (brandHueRange.start < 0f && (h - 360f) in brandHueRange) return true
+        return false
+    }
+
     private fun compute(color: Int): Int {
         val a = ColorMath.alpha(color)
         val (h, s, l) = ColorMath.toHsl(color).let { Triple(it[0], it[1], it[2]) }
-        if (s >= 0.30f && l in 0.18f..0.88f && h in brandHueRange) {
-            val newL = (accentHsl[2] + (l - BRAND_LIGHTNESS)).coerceIn(0.05f, 0.95f)
+        if (s >= 0.30f && l in 0.18f..0.88f && inHueRange(h)) {
+            val newL = (accentHsl[2] + (l - brandLightness)).coerceIn(0.05f, 0.95f)
             return ColorMath.fromHsl(accentHsl[0], accentHsl[1], newL, a)
         }
         if (s < 0.35f && l < 0.20f) {
@@ -53,5 +70,6 @@ class ColorRemapper(private val palette: Palette, private val brandHueRange: Clo
         /** Luminosité HSL de référence de la couleur de marque (~#A238FF). */
         const val BRAND_LIGHTNESS = 0.61f
         private const val MAX_CACHE = 4096
+        private const val MAX_PRODUCED = 16384
     }
 }

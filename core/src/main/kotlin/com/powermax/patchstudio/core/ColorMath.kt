@@ -81,12 +81,20 @@ object ColorMath {
         return (0.2126 * ch(red(color)) + 0.7152 * ch(green(color)) + 0.0722 * ch(blue(color))).toFloat()
     }
 
+    /** Ratio de contraste WCAG 2.1 entre deux couleurs (1.0..21.0). */
+    fun contrastRatio(a: Int, b: Int): Float {
+        val la = luminance(a)
+        val lb = luminance(b)
+        val hi = max(la, lb)
+        val lo = min(la, lb)
+        return (hi + 0.05f) / (lo + 0.05f)
+    }
+
     /** Noir ou blanc, selon le meilleur contraste. */
     fun onColorFor(background: Int): Int {
-        val l = luminance(background)
-        val contrastWhite = 1.05f / (l + 0.05f)
-        val contrastBlack = (l + 0.05f) / 0.05f
-        return if (contrastWhite >= contrastBlack) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+        val white = 0xFFFFFFFF.toInt()
+        val black = 0xFF000000.toInt()
+        return if (contrastRatio(white, background) >= contrastRatio(black, background)) white else black
     }
 
     fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)

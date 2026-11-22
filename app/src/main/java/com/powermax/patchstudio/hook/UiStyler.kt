@@ -8,7 +8,12 @@ import android.content.res.TypedArray
 import android.graphics.Outline
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.TypedValue
 import android.view.HapticFeedbackConstants
@@ -16,12 +21,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.ViewTreeObserver
+import android.view.WindowInsetsController
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
 import android.widget.AbsListView
 import android.widget.ImageView
 import android.widget.TextView
+import com.powermax.patchstudio.core.ColorMath
 import com.powermax.patchstudio.core.ColorRemapper
 import com.powermax.patchstudio.core.EntranceAnimation
 import com.powermax.patchstudio.core.FontChoice
@@ -42,11 +49,13 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
     private var remapper: ColorRemapper? = null
 
     private val cfg: StyleConfig get() = store.config
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
     // État UI (thread principal uniquement).
     private val entrancePending = WeakHashMap<Activity, Boolean>()
     private val listState = WeakHashMap<ViewGroup, LongArray>() // [dernier ajout ms, index stagger]
     private val pressState = WeakHashMap<View, Boolean>()
+    private val bouncedState = WeakHashMap<View, Boolean>()
     private val processed = WeakHashMap<View, Boolean>()
     private val walkers = WeakHashMap<View, TreeWalker>()
     private val auroras = WeakHashMap<Activity, AuroraDrawable>()
@@ -69,8 +78,29 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
 
     private fun onConfig(c: StyleConfig) {
         val palette = c.resolvedPalette()
-        remapper = if (palette == null) null else ColorRemapper(palette, target.brandHueRange)
+        remapper = if (palette == null) null else ColorRemapper(palette, target)
         FontMapper.choice = if (c.enabled) c.font else FontChoice.DEFAULT
+        val refresh = Runnable {
+            try {
+                processed.clear()
+                lyrics.onConfigChanged(c)
+                store.foregroundActivity()?.let { a ->
+                    val decor = a.window?.decorView ?: return@let
+                    if (c.enabled) {
+                        safe("systemBars") { tintSystemBars(a, c) }
+                        safe("walker") { ensureWalker(decor) }
+                    }
+                    safe("aurora") { updateAurora(a, decor, c) }
+                }
+            } catch (t: Throwable) {
+                Hooks.logOnce("onConfigRefresh", t)
+            }
+        }
+        if (Looper.myLooper() === Looper.getMainLooper()) {
+            refresh.run()
+        } else {
+            mainHandler.post(refresh)
+        }
     }
 
     private fun remap(color: Int): Int {
@@ -117,13 +147,39 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
         }
         val remapArg0: (MethodHookParam) -> Unit = { p ->
             val c = p.args[0]
-            if (c is Int) p.args[0] = remap(c)
+            if (c is Int) {
+                val m = remap(c)
+                if (m != c) p.args[0] = m
+            }
         }
         Hooks.guard("ColorDrawable(int)") {
             Hooks.beforeConstructor(ColorDrawable::class.java, int, body = remapArg0)
         }
         Hooks.guard("ColorDrawable.setColor") {
             Hooks.before(ColorDrawable::class.java, "setColor", int, body = remapArg0)
+        }
+        Hooks.guard("GradientDrawable.setColor(int)") {
+            Hooks.before(GradientDrawable::class.java, "setColor", int, body = remapArg0)
+        }
+        Hooks.guard("GradientDrawable.setColors(int[])") {
+            Hooks.before(GradientDrawable::class.java, "setColors", IntArray::class.java) { p ->
+                val arr = p.args[0] as? IntArray ?: return@before
+                if (arr.isEmpty() || !cfg.enabled || remapper == null) return@before
+                var changed = false
+                val copy = IntArray(arr.size) { i ->
+                    val orig = arr[i]
+                    val mapped = remap(orig)
+                    if (mapped != orig) changed = true
+                    mapped
+                }
+                if (changed) p.args[0] = copy
+            }
+        }
+        Hooks.guard("View.setBackgroundColor") {
+            Hooks.before(View::class.java, "setBackgroundColor", int, body = remapArg0)
+        }
+        Hooks.guard("Drawable.setTint") {
+            Hooks.before(Drawable::class.java, "setTint", int, body = remapArg0)
         }
     }
 
@@ -165,8 +221,23 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
     private fun tintSystemBars(a: Activity, c: StyleConfig) {
         if (!c.tintSystemBars) return
         val palette = c.resolvedPalette() ?: return
-        a.window.statusBarColor = palette.background
-        a.window.navigationBarColor = palette.background
+        val window = a.window ?: return
+        window.statusBarColor = palette.background
+        window.navigationBarColor = palette.background
+        val lightBg = ColorMath.luminance(palette.background) > 0.5f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if (lightBg) mask else 0, mask)
+        } else {
+            val decor = window.decorView
+            val flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            decor.systemUiVisibility = if (lightBg) {
+                decor.systemUiVisibility or flags
+            } else {
+                decor.systemUiVisibility and flags.inv()
+            }
+        }
     }
 
     // ---------------------------------------------------------------- 3. Entrée d'écran
@@ -297,26 +368,27 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
         val wasPressed = pressState[v] == true
         if (wasPressed == pressed) return
         if (!pressed) {
-            // Relâché : on ne revient à 1.0 que si on avait réduit la vue.
             pressState.remove(v)
-        } else {
-            if (!c.enabled || !c.pressBounce || !v.isClickable) return
-            pressState[v] = true
+            if (bouncedState.remove(v) == true) {
+                val rest = try {
+                    lyrics.restScale(v) ?: 1f
+                } catch (_: Throwable) {
+                    1f
+                }
+                v.animate().setStartDelay(0).setDuration(260L).setInterpolator(OvershootInterpolator())
+                    .scaleX(rest).scaleY(rest).start()
+            }
+            return
         }
-        if (pressed) {
+        if (!c.enabled || (!c.pressBounce && !c.haptics) || !v.isClickable) return
+        pressState[v] = true
+        if (c.haptics) v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        if (c.pressBounce) {
+            bouncedState[v] = true
             val wide = v.width > v.resources.displayMetrics.widthPixels * 0.8f
             val s = if (wide) 0.985f else 0.96f
             v.animate().setStartDelay(0).setDuration(90L).setInterpolator(DecelerateInterpolator())
                 .scaleX(s).scaleY(s).start()
-            if (c.haptics) v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        } else {
-            val rest = try {
-                lyrics.restScale(v) ?: 1f
-            } catch (_: Throwable) {
-                1f
-            }
-            v.animate().setStartDelay(0).setDuration(260L).setInterpolator(OvershootInterpolator())
-                .scaleX(rest).scaleY(rest).start()
         }
     }
 
@@ -337,10 +409,13 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
         private var pending = false
         private var lastRun = 0L
 
-        override fun onGlobalLayout() = schedule()
+        override fun onGlobalLayout() {
+            if (!cfg.enabled) return
+            schedule()
+        }
 
         fun schedule() {
-            if (pending) return
+            if (pending || !cfg.enabled) return
             pending = true
             val wait = (120L - (SystemClock.uptimeMillis() - lastRun)).coerceAtLeast(0L)
             root.postDelayed(this, wait)
@@ -381,7 +456,12 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
                         if (c.cornerRadiusDp <= 0 || w < minSize || h < minSize) continue
                         val ratio = w.toFloat() / h
                         if (ratio < 0.75f || ratio > 1.33f) continue
-                        if (v.clipToOutline || v.outlineProvider !== ViewOutlineProvider.BACKGROUND) continue
+                        val currentProvider = v.outlineProvider
+                        if (currentProvider !is RoundedOutline &&
+                            (v.clipToOutline || currentProvider !== ViewOutlineProvider.BACKGROUND)
+                        ) {
+                            continue
+                        }
                         v.outlineProvider = RoundedOutline(radiusPx)
                         v.clipToOutline = true
                     }
@@ -416,10 +496,15 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
             return
         }
         val accent = c.resolvedPalette()?.accent ?: target.brandColor
-        val drawable = existing ?: AuroraDrawable(accent, c.auroraIntensity).also {
-            it.setBounds(0, 0, decor.width, decor.height)
-            decor.overlay.add(it)
-            auroras[a] = it
+        val drawable = if (existing != null) {
+            existing.updateStyle(accent, c.auroraIntensity)
+            existing
+        } else {
+            AuroraDrawable(accent, c.auroraIntensity).also {
+                it.setBounds(0, 0, decor.width, decor.height)
+                decor.overlay.add(it)
+                auroras[a] = it
+            }
         }
         if (auroraLayout[decor] != true) {
             auroraLayout[decor] = true

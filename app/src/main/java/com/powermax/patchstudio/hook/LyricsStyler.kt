@@ -52,7 +52,13 @@ internal class LyricsStyler(
 
     private class TextState(val origPx: Float, val appliedPx: Float)
 
-    private class LineState(val list: WeakReference<View>, var vivid: Float, var state: Int)
+    private class LineState(
+        val list: WeakReference<View>,
+        var vivid: Float,
+        var state: Int,
+        var origColor: Int,
+        var accented: Boolean = false,
+    )
 
     private class Levels {
         var min = Float.MAX_VALUE
@@ -68,10 +74,12 @@ internal class LyricsStyler(
     private val styledTexts = WeakHashMap<TextView, Boolean>()
     private val fadeDone = WeakHashMap<View, Boolean>()
     private val backgrounds = WeakHashMap<View, Drawable>()
+    private val gradientDrawables = WeakHashMap<View, LyricsGradientDrawable>()
     private val bgAttempts = WeakHashMap<View, Int>()
     private val lines = WeakHashMap<TextView, LineState>()
     private val levels = WeakHashMap<View, Levels>()
     private val scrollClassCache = HashMap<Class<*>, Boolean>()
+    private var selfColorCall = false
 
     private val mainLooper: Looper? = Looper.getMainLooper()
 
@@ -93,6 +101,51 @@ internal class LyricsStyler(
         }
     }
 
+    /** Réinitialise les caches et restaure l'état des vues lors d'une mise à jour de config (thread principal). */
+    fun onConfigChanged(c: StyleConfig) {
+        styledTexts.clear()
+        fadeDone.clear()
+        bgAttempts.clear()
+        for ((_, gd) in gradientDrawables.entries.toList()) {
+            try {
+                gd.stop()
+            } catch (_: Throwable) {
+            }
+        }
+        gradientDrawables.clear()
+        backgrounds.clear()
+        val keepZoom = active(c) && c.lyricsActiveZoom
+        val keepAccent = active(c) && c.lyricsAccentActive
+        for ((tv, state) in lines.entries.toList()) {
+            if (!keepAccent && state.accented) {
+                setColorSilently(tv, state.origColor)
+                state.accented = false
+            }
+            if (!keepZoom && state.state != STATE_NEUTRAL) {
+                tv.animate().cancel()
+                tv.scaleX = 1f
+                tv.scaleY = 1f
+                tv.alpha = 1f
+            }
+            if (!keepZoom && !keepAccent) {
+                state.state = STATE_NEUTRAL
+            } else if (state.state == STATE_ACTIVE && keepAccent) {
+                val accent = c.resolvedPalette()?.accent ?: target.brandColor
+                setColorSilently(tv, accent)
+                state.accented = true
+            }
+        }
+    }
+
+    private fun setColorSilently(tv: TextView, color: Int) {
+        selfColorCall = true
+        try {
+            tv.setTextColor(color)
+        } finally {
+            selfColorCall = false
+        }
+    }
+
     private fun active(c: StyleConfig): Boolean = c.enabled && c.lyricsEnhanced
 
     private fun View.dp(v: Float): Float = v * resources.displayMetrics.density
@@ -100,6 +153,8 @@ internal class LyricsStyler(
     /** Échelle de repos d'une ligne (utilisée par le rebond d'appui pour ne pas annuler le zoom). */
     fun restScale(v: View): Float? {
         if (lines.isEmpty()) return null
+        val c = config()
+        if (!active(c) || !c.lyricsActiveZoom) return null
         val tv = v as? TextView ?: return null
         return if (lines[tv]?.state == STATE_ACTIVE) ACTIVE_SCALE else null
     }
@@ -199,10 +254,14 @@ internal class LyricsStyler(
             val v = stack.pop()
             if (v is ViewGroup) {
                 for (i in 0 until v.childCount) v.getChildAt(i)?.let { stack.push(it) }
-                if (c.lyricsFadeEdges && !fadeDone.containsKey(v) && isScrollable(v)) {
+                if (!fadeDone.containsKey(v) && isScrollable(v)) {
                     fadeDone[v] = true
-                    v.isVerticalFadingEdgeEnabled = true
-                    v.setFadingEdgeLength(v.dp(64f).toInt())
+                    if (c.lyricsFadeEdges) {
+                        v.isVerticalFadingEdgeEnabled = true
+                        v.setFadingEdgeLength(v.dp(64f).toInt())
+                    } else {
+                        v.isVerticalFadingEdgeEnabled = false
+                    }
                 }
             } else if (v is TextView) {
                 styleText(v, c)
@@ -252,10 +311,11 @@ internal class LyricsStyler(
     }
 
     private fun onTextColor(tv: TextView, color: Int) {
+        if (selfColorCall) return
         if (containers.isEmpty() && standaloneTexts.isEmpty()) return // chemin rapide hors paroles
         if (Looper.myLooper() !== mainLooper) return
         val c = config()
-        if (!active(c) || !c.lyricsActiveZoom) return
+        if (!active(c) || (!c.lyricsActiveZoom && !c.lyricsAccentActive)) return
         if (tv is Button || tv is EditText) return
 
         // Contexte : un conteneur de paroles parmi les ancêtres (ou ligne isolée), et une liste.
@@ -277,10 +337,14 @@ internal class LyricsStyler(
         val v = vividness(color)
         val line = lines[tv]
         if (line == null) {
-            lines[tv] = LineState(WeakReference(list), v, STATE_NEUTRAL)
+            lines[tv] = LineState(WeakReference(list), v, STATE_NEUTRAL, origColor = color)
         } else {
             line.vivid = v
-            if (line.list.get() !== list) lines[tv] = LineState(WeakReference(list), v, line.state)
+            line.origColor = color
+            line.accented = false
+            if (line.list.get() !== list) {
+                lines[tv] = LineState(WeakReference(list), v, line.state, origColor = color)
+            }
         }
         val lv = levels.getOrPut(list) { Levels() }
         val oldMin = lv.min
@@ -303,8 +367,18 @@ internal class LyricsStyler(
             s.vivid >= lv.max - 0.06f -> STATE_ACTIVE
             else -> STATE_INACTIVE
         }
+        // Même si l'état n'a pas changé, on réapplique l'accent si l'app vient de réécrire la couleur.
+        if (want == STATE_ACTIVE && c.lyricsAccentActive && !s.accented) {
+            val accent = c.resolvedPalette()?.accent ?: target.brandColor
+            setColorSilently(tv, accent)
+            s.accented = true
+        } else if (want != STATE_ACTIVE && s.accented) {
+            setColorSilently(tv, s.origColor)
+            s.accented = false
+        }
         if (want == s.state) return
         s.state = want
+        if (!c.lyricsActiveZoom) return
         val speed = c.animationSpeed.coerceIn(0.5f, 2f)
         tv.pivotX = if (c.lyricsAlignment == LyricsAlignment.CENTER) tv.width / 2f else 0f
         tv.pivotY = tv.height / 2f
@@ -341,6 +415,7 @@ internal class LyricsStyler(
                 // Accent assombri à 35 % de luminosité, légèrement désaturé pour rester sobre.
                 val deep = ColorMath.fromHsl(hsl[0], hsl[1] * 0.85f, 0.35f)
                 val gradient = LyricsGradientDrawable(deep, base)
+                gradientDrawables[v] = gradient
                 bindLifecycle(v, gradient)
                 val original = v.background
                 if (original == null || original is ColorDrawable) {

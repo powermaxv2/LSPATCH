@@ -12,6 +12,7 @@ class StatusReceiver : BroadcastReceiver() {
         if (intent.action != ConfigProtocol.ACTION_HELLO) return
         val appId = intent.getStringExtra(ConfigProtocol.EXTRA_APP_ID) ?: return
         if (TargetApps.byId(appId) == null) return
-        ConfigRepository.get(context).recordHello(appId, System.currentTimeMillis())
+        val version = intent.getStringExtra(ConfigProtocol.EXTRA_VERSION)
+        ConfigRepository.get(context).recordHello(appId, System.currentTimeMillis(), version)
     }
 }

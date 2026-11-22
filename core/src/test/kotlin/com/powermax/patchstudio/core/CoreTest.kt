@@ -75,6 +75,7 @@ class CoreTest {
             aurora = true, auroraIntensity = 0.4f,
             lyricsEnhanced = false, lyricsBackground = LyricsBackground.DARK, lyricsTextScale = 1.4f,
             lyricsAlignment = LyricsAlignment.CENTER, lyricsActiveZoom = false, lyricsFadeEdges = false,
+            lyricsAccentActive = true,
         )
         assertEquals(cfg, StyleConfig.fromMap(cfg.toMap()))
         assertEquals(StyleConfig.DEFAULT, StyleConfig.fromMap(StyleConfig.DEFAULT.toMap()))
@@ -106,12 +107,14 @@ class CoreTest {
         assertEquals(LyricsAlignment.LEFT, d.lyricsAlignment)
         assertEquals(true, d.lyricsActiveZoom)
         assertEquals(true, d.lyricsFadeEdges)
+        assertEquals(false, d.lyricsAccentActive)
     }
 
     @Test fun lyricsFromMapTolerant() {
         val low = StyleConfig.fromMap(mapOf(
             "lyricsEnhanced" to "0", "lyricsBackground" to " none ", "lyricsTextScale" to "0.1",
             "lyricsAlignment" to "center", "lyricsActiveZoom" to "nope", "lyricsFadeEdges" to "false",
+            "lyricsAccentActive" to "1",
         ))
         assertEquals(false, low.lyricsEnhanced)
         assertEquals(LyricsBackground.NONE, low.lyricsBackground)
@@ -119,12 +122,15 @@ class CoreTest {
         assertEquals(LyricsAlignment.CENTER, low.lyricsAlignment)
         assertEquals(true, low.lyricsActiveZoom)
         assertEquals(false, low.lyricsFadeEdges)
+        assertEquals(true, low.lyricsAccentActive)
         val bad = StyleConfig.fromMap(mapOf(
             "lyricsBackground" to "RAINBOW", "lyricsTextScale" to "42", "lyricsAlignment" to "RIGHT",
+            "lyricsAccentActive" to "invalid",
         ))
         assertEquals(LyricsBackground.GRADIENT, bad.lyricsBackground)
         assertEquals(1.6f, bad.lyricsTextScale, 0f)
         assertEquals(LyricsAlignment.LEFT, bad.lyricsAlignment)
+        assertEquals(false, bad.lyricsAccentActive)
         assertEquals(1.15f, StyleConfig.fromMap(mapOf("lyricsTextScale" to "NaN")).lyricsTextScale, 0f)
     }
 
@@ -136,13 +142,62 @@ class CoreTest {
         assertNull(ConfigProtocol.decode(mapOf("foo" to "bar")))
     }
 
+    @Test fun shareCodeRoundtripAndValidation() {
+        val defaultCode = StyleConfig.DEFAULT.toShareCode()
+        assertTrue(defaultCode.startsWith("PS1:"))
+        assertEquals(StyleConfig.DEFAULT, StyleConfig.fromShareCode(defaultCode))
+        assertEquals(StyleConfig.DEFAULT, StyleConfig.fromShareCode("  `$defaultCode`  "))
+
+        val custom = StyleConfig(
+            themeId = "nord",
+            entrance = EntranceAnimation.ZOOM,
+            font = FontChoice.SERIF,
+            aurora = true,
+            auroraIntensity = 0.45f,
+            lyricsAccentActive = true,
+            cornerRadiusDp = 24,
+        )
+        val code = custom.toShareCode()
+        assertEquals(custom, StyleConfig.fromShareCode(code))
+
+        assertNull(StyleConfig.fromShareCode(null))
+        assertNull(StyleConfig.fromShareCode(""))
+        assertNull(StyleConfig.fromShareCode("PS2:abc"))
+        assertNull(StyleConfig.fromShareCode("PS1:not-valid-base64!!!"))
+        // Base64 of "unknownKey=123"
+        assertNull(StyleConfig.fromShareCode("PS1:dW5rbm93bktleT0xMjM"))
+    }
+
+    @Test fun contrastRatioAndHexRgb() {
+        assertEquals(21f, ColorMath.contrastRatio(0xFFFFFFFF.toInt(), 0xFF000000.toInt()), 0.05f)
+        assertEquals(1f, ColorMath.contrastRatio(0xFF123456.toInt(), 0xFF123456.toInt()), 0.001f)
+        assertEquals("#00E5FF", StyleConfig.hexRgb(StyleConfig.DEFAULT_CUSTOM_ACCENT))
+        for (preset in ThemePresets.ALL) {
+            val p = preset.palette ?: continue
+            assertTrue("${preset.id} contrast", ColorMath.contrastRatio(p.accent, p.background) >= 4.0f)
+        }
+    }
+
+    @Test fun wrapAroundHueAndGenericTargetRemapper() {
+        val redTarget = TargetApp("red", "com.example.red", "Red", "", 0xFFE50914.toInt(), 345f..375f)
+        val ocean = ThemePresets.byId("ocean").palette!!
+        val r = ColorRemapper(ocean, redTarget)
+        val out = r.map(0xFFFF1020.toInt())
+        assertTrue(hueDist(ColorMath.toHsl(out)[0], ColorMath.toHsl(ocean.accent)[0]) < 2f)
+        assertEquals(out, r.map(out))
+    }
+
     @Test fun palettes() {
         assertNull(StyleConfig(themeId = "original").resolvedPalette())
         assertNull(StyleConfig(enabled = false).resolvedPalette())
         val custom = StyleConfig(themeId = "custom", customAccent = 0xFF00FF00.toInt()).resolvedPalette()
         assertNotNull(custom)
         assertEquals(0xFF00FF00.toInt(), custom!!.accent)
-        assertEquals(8, ThemePresets.ALL.size)
+        assertEquals(12, ThemePresets.ALL.size)
+        for (id in listOf("nord", "gold", "ruby", "midnight")) {
+            assertEquals(id, ThemePresets.byId(id).id)
+            assertNotNull(ThemePresets.byId(id).palette)
+        }
         assertEquals(ThemePresets.ORIGINAL, ThemePresets.byId("nope"))
         assertEquals(deezer, TargetApps.byPackage("deezer.android.app"))
         assertEquals(0xFF000000.toInt(), ColorMath.onColorFor(0xFFFFFFFF.toInt()))
