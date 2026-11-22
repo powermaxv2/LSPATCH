@@ -66,6 +66,7 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
     private val emphasized = PathInterpolator(0.2f, 0f, 0f, 1f)
 
     private val lyrics = LyricsStyler(target) { store.config }
+    private val liquidGlass = LiquidGlassStyler(target)
 
     fun install() {
         onConfig(store.config)
@@ -84,12 +85,14 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
             try {
                 processed.clear()
                 lyrics.onConfigChanged(c)
+                liquidGlass.onConfigChanged(c)
                 store.foregroundActivity()?.let { a ->
                     val decor = a.window?.decorView ?: return@let
                     if (c.enabled) {
                         safe("systemBars") { tintSystemBars(a, c) }
                         safe("walker") { ensureWalker(decor) }
                     }
+                    safe("liquidGlassWindow") { liquidGlass.onActivityResume(a, c) }
                     safe("aurora") { updateAurora(a, decor, c) }
                 }
             } catch (t: Throwable) {
@@ -214,6 +217,7 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
             if (entrancePending.remove(a) == true) safe("entrance") { playEntrance(a, c) }
             safe("walker") { ensureWalker(decor) }
         }
+        safe("liquidGlassWindow") { liquidGlass.onActivityResume(a, c) }
         safe("aurora") { updateAurora(a, decor, c) }
     }
 
@@ -445,6 +449,11 @@ class UiStyler(private val target: TargetApp, private val store: TargetConfigSto
                     lyrics.onWalk(v, c)
                 } catch (t: Throwable) {
                     Hooks.logOnce("lyrics", t)
+                }
+                try {
+                    liquidGlass.onWalk(v, c)
+                } catch (t: Throwable) {
+                    Hooks.logOnce("liquidGlass", t)
                 }
                 if (processed.containsKey(v)) continue
                 when (v) {

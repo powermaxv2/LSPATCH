@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
@@ -184,6 +190,45 @@ fun PlayerPreview(config: StyleConfig, target: TargetApp, modifier: Modifier = M
 }
 
 @Composable
+private fun Modifier.liquidGlassSurface(
+    surface: Color,
+    accent: Color,
+    intensity: Float,
+    tinted: Boolean,
+    shape: Shape,
+): Modifier {
+    val k = intensity.coerceIn(0.25f, 1f)
+    val base = if (tinted) Color(ColorMath.blend(surface.toArgb(), accent.toArgb(), 0.16f * k)) else surface
+    val topAlpha = (0.88f - 0.18f * k).coerceIn(0.62f, 0.90f)
+    val midAlpha = (0.82f - 0.22f * k).coerceIn(0.55f, 0.86f)
+    val botAlpha = (0.90f - 0.14f * k).coerceIn(0.68f, 0.92f)
+    val rimMid = if (tinted) Color(ColorMath.blend(0xFFFFFFFF.toInt(), accent.toArgb(), 0.55f)) else Color.White
+
+    val bodyBrush = Brush.verticalGradient(
+        listOf(
+            Color(ColorMath.blend(base.toArgb(), 0xFFFFFFFF.toInt(), 0.12f * k)).copy(alpha = topAlpha),
+            base.copy(alpha = midAlpha),
+            Color(ColorMath.blend(base.toArgb(), 0xFF000000.toInt(), 0.20f)).copy(alpha = botAlpha),
+        ),
+    )
+    val sheenBrush = Brush.verticalGradient(
+        0f to Color.White.copy(alpha = 0.10f + 0.14f * k),
+        0.45f to Color.Transparent,
+    )
+    val rimBrush = Brush.linearGradient(
+        0f to Color.White.copy(alpha = 0.32f + 0.36f * k),
+        0.30f to rimMid.copy(alpha = 0.14f + 0.16f * k),
+        0.70f to Color.White.copy(alpha = 0.06f + 0.06f * k),
+        1f to rimMid.copy(alpha = 0.18f + 0.22f * k),
+    )
+    return this
+        .clip(shape)
+        .background(bodyBrush)
+        .background(sheenBrush)
+        .border(1.dp, rimBrush, shape)
+}
+
+@Composable
 private fun MiniPlayerCard(
     config: StyleConfig,
     background: Color,
@@ -197,6 +242,8 @@ private fun MiniPlayerCard(
     val strong = onBackground.copy(alpha = 0.92f)
     val soft = onBackground.copy(alpha = 0.56f)
     val faint = onBackground.copy(alpha = 0.16f)
+    val glassOn = config.enabled && config.liquidGlass
+    val glassRadius = if (glassOn) radius.coerceAtLeast(12.dp) else radius
 
     var playing by remember { mutableStateOf(true) }
     val playInteraction = remember { MutableInteractionSource() }
@@ -248,10 +295,10 @@ private fun MiniPlayerCard(
             .clip(RoundedCornerShape(12.dp))
             .background(background),
     ) {
-        if (config.enabled && config.aurora) {
+        if (config.enabled && (config.aurora || glassOn)) {
             AuroraPreviewBackdrop(
                 accent = accent,
-                intensity = config.auroraIntensity,
+                intensity = if (config.aurora) config.auroraIntensity else (0.18f + 0.16f * config.liquidGlassIntensity),
                 modifier = Modifier.matchParentSize(),
             )
         }
@@ -259,87 +306,115 @@ private fun MiniPlayerCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(entranceModifier)
-                .padding(16.dp),
+                .padding(14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(radius.coerceAtLeast(2.dp)))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(accent, Color(ColorMath.blend(accent.toArgb(), surface.toArgb(), 0.45f))),
-                            ),
-                        ),
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = SampleTracks[0].first,
-                        fontFamily = fontFamily,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = strong,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = SampleTracks[0].second,
-                        fontFamily = fontFamily,
-                        fontSize = 13.sp,
-                        color = soft,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .then(if (config.enabled && config.pressBounce) Modifier.pressScale(playInteraction, 0.92f) else Modifier)
-                        .clip(CircleShape)
-                        .background(accent)
-                        .clickable(
-                            interactionSource = playInteraction,
-                            indication = null,
-                            role = Role.Button,
-                            onClick = replayEntrance,
-                        )
-                        .semantics { contentDescription = "Tester l'animation dans l'aperçu" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = onAccent,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Box(
+            val playerCardMod = if (glassOn) {
                 Modifier
                     .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(CircleShape)
-                    .background(faint),
-            ) {
+                    .liquidGlassSurface(
+                        surface = surface,
+                        accent = accent,
+                        intensity = config.liquidGlassIntensity,
+                        tinted = config.liquidGlassTint,
+                        shape = RoundedCornerShape(glassRadius),
+                    )
+                    .padding(12.dp)
+            } else {
+                Modifier.fillMaxWidth()
+            }
+            Column(modifier = playerCardMod) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(radius.coerceAtLeast(2.dp)))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(accent, Color(ColorMath.blend(accent.toArgb(), surface.toArgb(), 0.45f))),
+                                ),
+                            ),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = SampleTracks[0].first,
+                            fontFamily = fontFamily,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = strong,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = SampleTracks[0].second,
+                            fontFamily = fontFamily,
+                            fontSize = 13.sp,
+                            color = soft,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .then(if (config.enabled && config.pressBounce) Modifier.pressScale(playInteraction, 0.92f) else Modifier)
+                            .clip(CircleShape)
+                            .background(accent)
+                            .clickable(
+                                interactionSource = playInteraction,
+                                indication = null,
+                                role = Role.Button,
+                                onClick = replayEntrance,
+                            )
+                            .semantics { contentDescription = "Tester l'animation dans l'aperçu" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            tint = onAccent,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 Box(
                     Modifier
-                        .fillMaxWidth(0.42f)
+                        .fillMaxWidth()
                         .height(3.dp)
                         .clip(CircleShape)
-                        .background(accent),
-                )
+                        .background(faint),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(0.42f)
+                            .height(3.dp)
+                            .clip(CircleShape)
+                            .background(accent),
+                    )
+                }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             SampleTracks.forEachIndexed { i, (title, artist) ->
-                Row(
-                    modifier = Modifier
+                val rowMod = when {
+                    i == 0 && glassOn -> Modifier
+                        .fillMaxWidth()
+                        .liquidGlassSurface(
+                            surface = surface,
+                            accent = accent,
+                            intensity = config.liquidGlassIntensity * 0.9f,
+                            tinted = config.liquidGlassTint,
+                            shape = RoundedCornerShape(glassRadius),
+                        )
+                    i == 0 -> Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(radius))
-                        .background(if (i == 0) surface.copy(alpha = 0.85f) else Color.Transparent)
-                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                        .background(surface.copy(alpha = 0.85f))
+                    else -> Modifier.fillMaxWidth()
+                }
+                Row(
+                    modifier = rowMod.padding(horizontal = 8.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -368,6 +443,28 @@ private fun MiniPlayerCard(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+            }
+            if (glassOn) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlassSurface(
+                            surface = surface,
+                            accent = accent,
+                            intensity = config.liquidGlassIntensity,
+                            tinted = config.liquidGlassTint,
+                            shape = CircleShape,
+                        )
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Home, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Search, contentDescription = null, tint = soft, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = soft, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.LibraryMusic, contentDescription = null, tint = soft, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -411,6 +508,7 @@ private fun LyricsPreviewCard(
     fontFamily: FontFamily,
 ) {
     val enhanced = config.enabled && config.lyricsEnhanced
+    val glassOn = config.enabled && config.liquidGlass
     var activeIndex by remember { mutableIntStateOf(1) }
 
     val baseBg = when {
@@ -470,6 +568,19 @@ private fun LyricsPreviewCard(
                     animationSpec = tween(PsMotion.DurationShort),
                     label = "lyricColor",
                 )
+                val activeGlassMod = if (glassOn && isActive) {
+                    Modifier
+                        .liquidGlassSurface(
+                            surface = baseBg,
+                            accent = accent,
+                            intensity = config.liquidGlassIntensity * 0.85f,
+                            tinted = config.liquidGlassTint,
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                } else {
+                    Modifier
+                }
                 Text(
                     text = line,
                     fontFamily = fontFamily,
@@ -487,7 +598,8 @@ private fun LyricsPreviewCard(
                             transformOrigin = TransformOrigin(if (centered) 0.5f else 0f, 0.5f)
                             scaleX = zoomScale
                             scaleY = zoomScale
-                        },
+                        }
+                        .then(activeGlassMod),
                 )
             }
         }

@@ -33,6 +33,7 @@ object ThemePresets {
         preset("gold", "Or nocturne", "Ambre doré sur noir chaud", 0xFFF5B73B, 0xFF0C0A07, 0xFF1C1710),
         preset("ruby", "Rubis", "Rouge carmin sur nuit sombre", 0xFFFF3B5C, 0xFF120609, 0xFF240D13),
         preset("midnight", "Minuit", "Indigo électrique sur bleu nuit", 0xFF6C7CFF, 0xFF070914, 0xFF12172E),
+        preset("liquid", "Liquid", "Verre givré cyan sur nuit profonde", 0xFF5AC8FA, 0xFF060A12, 0xFF101928),
         ThemePreset(
             CUSTOM_ID, "Perso", "Tes propres couleurs",
             paletteOf(StyleConfig.DEFAULT_CUSTOM_ACCENT, StyleConfig.DEFAULT_CUSTOM_BACKGROUND),

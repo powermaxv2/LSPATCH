@@ -34,6 +34,9 @@ data class StyleConfig(
     val font: FontChoice = FontChoice.DEFAULT,
     val aurora: Boolean = false,
     val auroraIntensity: Float = 0.25f,
+    val liquidGlass: Boolean = false,
+    val liquidGlassIntensity: Float = 0.65f,
+    val liquidGlassTint: Boolean = true,
     val lyricsEnhanced: Boolean = true,
     val lyricsBackground: LyricsBackground = LyricsBackground.GRADIENT,
     val lyricsTextScale: Float = 1.15f,
@@ -65,6 +68,9 @@ data class StyleConfig(
         K_FONT to font.name,
         K_AURORA to aurora.toString(),
         K_AURORA_INTENSITY to auroraIntensity.toString(),
+        K_LIQUID_GLASS to liquidGlass.toString(),
+        K_LIQUID_INTENSITY to liquidGlassIntensity.toString(),
+        K_LIQUID_TINT to liquidGlassTint.toString(),
         K_LYRICS to lyricsEnhanced.toString(),
         K_LYRICS_BG to lyricsBackground.name,
         K_LYRICS_SCALE to lyricsTextScale.toString(),
@@ -93,6 +99,7 @@ data class StyleConfig(
         val SPEED_RANGE = 0.5f..2f
         val CORNER_RANGE = 0..32
         val AURORA_RANGE = 0.05f..0.6f
+        val LIQUID_GLASS_RANGE = 0.25f..1f
         val LYRICS_SCALE_RANGE = 0.9f..1.6f
 
         private const val SHARE_PREFIX = "PS1:"
@@ -113,6 +120,9 @@ data class StyleConfig(
         private const val K_FONT = "font"
         private const val K_AURORA = "aurora"
         private const val K_AURORA_INTENSITY = "auroraIntensity"
+        private const val K_LIQUID_GLASS = "liquidGlass"
+        private const val K_LIQUID_INTENSITY = "liquidGlassIntensity"
+        private const val K_LIQUID_TINT = "liquidGlassTint"
         private const val K_LYRICS = "lyricsEnhanced"
         private const val K_LYRICS_BG = "lyricsBackground"
         private const val K_LYRICS_SCALE = "lyricsTextScale"
@@ -125,6 +135,7 @@ data class StyleConfig(
             K_ENABLED, K_THEME, K_CUSTOM_ACCENT, K_CUSTOM_BG, K_SYSTEM_BARS,
             K_ENTRANCE, K_TRANSITIONS, K_SPEED, K_LISTS, K_BOUNCE, K_HAPTICS,
             K_CORNERS, K_FONT, K_AURORA, K_AURORA_INTENSITY,
+            K_LIQUID_GLASS, K_LIQUID_INTENSITY, K_LIQUID_TINT,
             K_LYRICS, K_LYRICS_BG, K_LYRICS_SCALE, K_LYRICS_ALIGN, K_LYRICS_ZOOM,
             K_LYRICS_FADE, K_LYRICS_ACCENT,
         )
@@ -162,6 +173,9 @@ data class StyleConfig(
                 font = enumOrNull<FontChoice>(map[K_FONT]) ?: d.font,
                 aurora = bool(K_AURORA, d.aurora),
                 auroraIntensity = float(K_AURORA_INTENSITY, d.auroraIntensity, AURORA_RANGE),
+                liquidGlass = bool(K_LIQUID_GLASS, d.liquidGlass),
+                liquidGlassIntensity = float(K_LIQUID_INTENSITY, d.liquidGlassIntensity, LIQUID_GLASS_RANGE),
+                liquidGlassTint = bool(K_LIQUID_TINT, d.liquidGlassTint),
                 lyricsEnhanced = bool(K_LYRICS, d.lyricsEnhanced),
                 lyricsBackground = enumOrNull<LyricsBackground>(map[K_LYRICS_BG]) ?: d.lyricsBackground,
                 lyricsTextScale = float(K_LYRICS_SCALE, d.lyricsTextScale, LYRICS_SCALE_RANGE),

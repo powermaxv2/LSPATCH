@@ -187,14 +187,40 @@ class CoreTest {
         assertEquals(out, r.map(out))
     }
 
+    @Test fun liquidGlassConfigAndShareCode() {
+        val d = StyleConfig.DEFAULT
+        assertEquals(false, d.liquidGlass)
+        assertEquals(0.65f, d.liquidGlassIntensity, 0f)
+        assertEquals(true, d.liquidGlassTint)
+
+        val cfg = StyleConfig(
+            themeId = "liquid",
+            liquidGlass = true,
+            liquidGlassIntensity = 0.85f,
+            liquidGlassTint = false,
+        )
+        assertEquals(cfg, StyleConfig.fromMap(cfg.toMap()))
+        assertEquals(cfg, StyleConfig.fromShareCode(cfg.toShareCode()))
+
+        val clamped = StyleConfig.fromMap(mapOf(
+            "liquidGlass" to "1",
+            "liquidGlassIntensity" to "5.0",
+            "liquidGlassTint" to "0",
+        ))
+        assertEquals(true, clamped.liquidGlass)
+        assertEquals(1.0f, clamped.liquidGlassIntensity, 0f)
+        assertEquals(false, clamped.liquidGlassTint)
+        assertEquals(0.25f, StyleConfig.fromMap(mapOf("liquidGlassIntensity" to "0.01")).liquidGlassIntensity, 0f)
+    }
+
     @Test fun palettes() {
         assertNull(StyleConfig(themeId = "original").resolvedPalette())
         assertNull(StyleConfig(enabled = false).resolvedPalette())
         val custom = StyleConfig(themeId = "custom", customAccent = 0xFF00FF00.toInt()).resolvedPalette()
         assertNotNull(custom)
         assertEquals(0xFF00FF00.toInt(), custom!!.accent)
-        assertEquals(12, ThemePresets.ALL.size)
-        for (id in listOf("nord", "gold", "ruby", "midnight")) {
+        assertEquals(13, ThemePresets.ALL.size)
+        for (id in listOf("nord", "gold", "ruby", "midnight", "liquid")) {
             assertEquals(id, ThemePresets.byId(id).id)
             assertNotNull(ThemePresets.byId(id).palette)
         }

@@ -54,6 +54,7 @@ import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -455,6 +456,46 @@ fun AppSettingsScreen(appId: String, onBack: () -> Unit) {
                             onValueChange = { v -> update { it.copy(cornerRadiusDp = v.roundToInt()) } },
                             valueLabel = { if (it.roundToInt() == 0) "Désactivé" else "${it.roundToInt()} dp" },
                         )
+                        RowDivider()
+                        SwitchRow(
+                            title = "Liquid Glass",
+                            subtitle = "Verre translucide, reflets spéculaires et barres flottantes",
+                            icon = Icons.Outlined.WaterDrop,
+                            checked = config.liquidGlass,
+                            onCheckedChange = { v -> update { it.copy(liquidGlass = v) } },
+                        )
+                        AnimatedVisibility(
+                            visible = config.liquidGlass,
+                            enter = PsMotion.Expand,
+                            exit = PsMotion.Collapse,
+                        ) {
+                            Column {
+                                RowDivider()
+                                SliderRow(
+                                    title = "Intensité du verre",
+                                    value = config.liquidGlassIntensity,
+                                    valueRange = StyleConfig.LIQUID_GLASS_RANGE,
+                                    steps = 14,
+                                    onValueChange = { v ->
+                                        update {
+                                            it.copy(
+                                                liquidGlassIntensity = roundStep(v, 0.05f).coerceIn(0.25f, 1f),
+                                            )
+                                        }
+                                    },
+                                    valueLabel = { "${(it * 100).roundToInt()} %" },
+                                    modifier = Modifier.padding(start = 48.dp),
+                                )
+                                RowDivider()
+                                SwitchRow(
+                                    title = "Reflets teintés par l'accent",
+                                    subtitle = "Réfraction subtile aux couleurs du thème",
+                                    checked = config.liquidGlassTint,
+                                    onCheckedChange = { v -> update { it.copy(liquidGlassTint = v) } },
+                                    modifier = Modifier.padding(start = 48.dp),
+                                )
+                            }
+                        }
                         RowDivider()
                         SwitchRow(
                             title = "Aurore",

@@ -95,7 +95,7 @@ data class ThemePreset(val id: String, val name: String, val description: String
 // palette == null  => thème "original" (aucun remappage couleur)
 object ThemePresets {
     val ORIGINAL: ThemePreset        // id "original"
-    val ALL: List<ThemePreset>       // original, amoled, synthwave, ocean, foret, sunset, sakura, nord, gold, ruby, midnight, custom
+    val ALL: List<ThemePreset>       // original, amoled, synthwave, ocean, foret, sunset, sakura, nord, gold, ruby, midnight, liquid, custom
     fun byId(id: String): ThemePreset // fallback ORIGINAL
     const val CUSTOM_ID = "custom"
 }
@@ -121,6 +121,9 @@ data class StyleConfig(
     val font: FontChoice = FontChoice.DEFAULT,
     val aurora: Boolean = false,
     val auroraIntensity: Float = 0.25f,   // 0.05..0.6
+    val liquidGlass: Boolean = false,     // surfaces verre translucide + reflets spéculaires + barres flottantes
+    val liquidGlassIntensity: Float = 0.65f, // 0.25..1.0 (LIQUID_GLASS_RANGE)
+    val liquidGlassTint: Boolean = true,  // teinte subtile des reflets avec la couleur d'accent
     // Écran des paroles (détecté via les noms d'id de ressource contenant "lyric")
     val lyricsEnhanced: Boolean = true,
     val lyricsBackground: LyricsBackground = LyricsBackground.GRADIENT,
